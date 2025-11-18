@@ -3,7 +3,10 @@ name: Update FPL JSON
 on:
   schedule:
     - cron: "0 * * * *"   # every hour (UTC)
-  workflow_dispatch:       # allow manual run from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write          # REQUIRED to allow git push
 
 jobs:
   update:
@@ -17,13 +20,16 @@ jobs:
         run: |
           curl -L https://fantasy.premierleague.com/api/bootstrap-static/ -o bootstrap-static.json
 
-      - name: Commit updated JSON (if changed)
+      - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bootstrap-static.json
-          git commit -m "Update FPL data" || echo "No changes to commit"
 
-      - name: Push changes
-        run: |
+          if git diff --quiet bootstrap-static.json; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add bootstrap-static.json
+          git commit -m "Update FPL data"
           git push
