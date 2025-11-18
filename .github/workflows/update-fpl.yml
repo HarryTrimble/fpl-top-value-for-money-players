@@ -16,23 +16,34 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0     # needed so we can rebase before pushing
 
       - name: Fetch latest FPL bootstrap-static
         run: |
           curl -L https://fantasy.premierleague.com/api/bootstrap-static/ -o bootstrap-static.json
+
+      - name: Fetch GW live data (1–38)
+        run: |
+          mkdir -p gw
+          for i in $(seq 1 38); do
+            echo "Fetching GW $i"
+            # -s silent, -f fail on HTTP error, -L follow redirects
+            curl -sfL "https://fantasy.premierleague.com/api/event/$i/live/" -o "gw/gw-$i.json" \
+              || echo "Skipping GW $i (not available yet)"
+          done
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet bootstrap-static.json; then
+          # If nothing changed, exit early
+          if git diff --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          git add bootstrap-static.json
-          git commit -m "Update FPL data"
+          git add bootstrap-static.json gw
+          git commit -m "Update FPL data (bootstrap + GW live)"
           git pull --rebase origin main
           git push origin HEAD:main
