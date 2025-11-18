@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FPL Value Table</title>
+</head>
+<body>
+  <h1>FPL – Over the season [total points]</h1>
+  <table id="fpl-table" border="1">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadCSV(url) {
+      const res = await fetch(url);
+      const text = await res.text();
+      const rows = text.trim().split('\n').map(r => r.split(','));
+
+      const thead = document.querySelector('#fpl-table thead');
+      const tbody = document.querySelector('#fpl-table tbody');
+
+      // headers
+      const headerRow = document.createElement('tr');
+      rows[0].forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+
+      // data
+      rows.slice(1).forEach(r => {
+        const tr = document.createElement('tr');
+        r.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    // If CSV is in same repo, just refer to it directly:
+    loadCSV('fpl-over-season.csv');
+  </script>
+</body>
+</html>
