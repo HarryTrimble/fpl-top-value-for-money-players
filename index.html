@@ -43,7 +43,6 @@
     th, td {
       padding: 0.35rem 0.5rem;
       border-bottom: 1px solid #111827;
-      text-align: right;
       white-space: nowrap;
     }
     th {
@@ -57,12 +56,30 @@
       letter-spacing: 0.04em;
       color: #9ca3af;
     }
-    th:first-child, td:first-child { text-align: center; }
+
+    /* Center # column */
+    th:nth-child(1), td:nth-child(1) { text-align: center; }
+
+    /*
+      LEFT-ALIGN COLUMNS:
+      2 = player
+      4 = position (after value column)
+      5 = club (your request)
+    */
     th:nth-child(2), td:nth-child(2),
-    th:nth-child(3), td:nth-child(3),
-    th:nth-child(4), td:nth-child(4) { text-align: left; }
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(5), td:nth-child(5) {
+      text-align: left;
+    }
+
+    /* Everything else right-aligned (stats) */
+    td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(4)):not(:nth-child(5)) {
+      text-align: right;
+    }
+
     tr:nth-child(even) td { background: #020617; }
     tr:hover td { background: #0b1120; }
+
     @media (max-width: 900px) {
       table { font-size: 0.75rem; }
       th, td { padding: 0.25rem 0.35rem; }
@@ -89,9 +106,7 @@
 
   <div style="overflow-x: auto;">
     <table id="players-table">
-      <thead>
-        <tr></tr>
-      </thead>
+      <thead><tr></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -112,16 +127,13 @@
 
     async function init() {
       try {
-        statusEl.textContent = "Loading cached FPL data…";
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const bootstrap = await res.json();
 
-        const finished = (bootstrap.events || [])
-          .filter(e => e.finished)
-          .sort((a, b) => a.id - b.id);
-
+        const finished = bootstrap.events.filter(e => e.finished).sort((a,b) => a.id - b.id);
         const lastFive = finished.slice(-5);
+
         gwInDisplayOrder = lastFive.slice().reverse();
         gwHeaders = gwInDisplayOrder.map(ev => "GW" + ev.id + " pts");
 
@@ -129,65 +141,50 @@
         players = transformData(bootstrap, gwInDisplayOrder, gwMaps);
 
         sortAndRender();
-        statusEl.textContent =
-          "Loaded " + players.length +
-          " players. Last 5 finished GWs: " + gwHeaders.join(", ");
       } catch (err) {
-        console.error(err);
         statusEl.textContent = "Failed to load FPL data: " + err.message;
       }
     }
 
     async function loadGwLive(lastFive) {
       const result = {};
-      await Promise.all(
-        lastFive.map(async ev => {
-          try {
-            const url = `${GW_DIR}/gw-${ev.id}.json`;
-            const res = await fetch(url);
-            if (!res.ok) {
-              console.warn("GW file not found:", url, "status", res.status);
-              return;
-            }
-            const data = await res.json();
-            const map = {};
-            (data.elements || []).forEach(el => {
-              map[el.id] = (el.stats && el.stats.total_points) || 0;
-            });
-            result[ev.id] = map;
-          } catch (e) {
-            console.error("Error loading GW", ev.id, e);
-          }
-        })
-      );
+      await Promise.all(lastFive.map(async ev => {
+        try {
+          const url = `${GW_DIR}/gw-${ev.id}.json`;
+          const res = await fetch(url);
+          if (!res.ok) return;
+          const data = await res.json();
+          const map = {};
+          data.elements.forEach(el => {
+            map[el.id] = el.stats?.total_points || 0;
+          });
+          result[ev.id] = map;
+        } catch {}
+      }));
       return result;
     }
 
     function transformData(bootstrap, gwDisplayOrder, gwMaps) {
       const teams = {};
-      (bootstrap.teams || []).forEach(t => { teams[t.id] = t.name; });
+      bootstrap.teams.forEach(t => teams[t.id] = t.name);
       const positions = {};
-      (bootstrap.element_types || []).forEach(p => {
-        positions[p.id] = p.singular_name_short;
-      });
+      bootstrap.element_types.forEach(p => positions[p.id] = p.singular_name_short);
 
-      return (bootstrap.elements || []).map(e => {
-        const cost = (e.now_cost || 0) / 10;
-        const form = parseFloat(e.form || "0") || 0;
-        const totalPoints = e.total_points || 0;
+      return bootstrap.elements.map(e => {
+        const cost = e.now_cost / 10;
+        const form = parseFloat(e.form) || 0;
+        const totalPoints = e.total_points;
+        const ptsPerCost = totalPoints / cost;
+        const formPerCost = form / cost;
 
-        const ptsPerCost = cost > 0 ? totalPoints / cost : 0;
-        const formPerCost = cost > 0 ? form / cost : 0;
-
-        const gwPoints = gwDisplayOrder.map(ev => {
-          const gwMap = gwMaps[ev.id] || {};
-          return gwMap[e.id] || 0;
-        });
+        const gwPoints = gwDisplayOrder.map(ev =>
+          (gwMaps[ev.id] || {})[e.id] || 0
+        );
 
         return {
-          name: e.web_name,                  // short FPL name
-          position: positions[e.element_type] || "",
-          club: teams[e.team] || "",
+          name: e.web_name,  // SHORT FPL NAME ✔
+          position: positions[e.element_type],
+          club: teams[e.team],
           cost,
           form,
           totalPoints,
@@ -199,9 +196,7 @@
     }
 
     function sortAndRender() {
-      const sorted = players.slice().sort(
-        (a, b) => b[currentSortKey] - a[currentSortKey]
-      );
+      const sorted = players.slice().sort((a,b) => b[currentSortKey] - a[currentSortKey]);
       renderTable(sorted);
     }
 
@@ -230,18 +225,13 @@
         theadRow.appendChild(th);
       });
 
-      // Rows
+      // Body
       list.forEach((p, index) => {
         const tr = document.createElement("tr");
+        function cell(v) { const td = document.createElement("td"); td.textContent = v; return td; }
 
-        function cell(v) {
-          const td = document.createElement("td");
-          td.textContent = v;
-          return td;
-        }
-
-        tr.appendChild(cell(index + 1));          // #
-        tr.appendChild(cell(p.name));             // player
+        tr.appendChild(cell(index + 1));      // #
+        tr.appendChild(cell(p.name));         // player
 
         if (!hidePtsPerCost)
           tr.appendChild(cell(p.ptsPerCost.toFixed(2)));
@@ -249,23 +239,20 @@
         if (!hideFormPerCost)
           tr.appendChild(cell(p.formPerCost.toFixed(2)));
 
-        tr.appendChild(cell(p.position));         // position
-        tr.appendChild(cell(p.club));             // club
-        tr.appendChild(cell(p.cost.toFixed(1)));  // cost
-        tr.appendChild(cell(p.form.toFixed(1)));  // form
-        tr.appendChild(cell(p.totalPoints));      // total points
+        tr.appendChild(cell(p.position));     // position
+        tr.appendChild(cell(p.club));         // club ✔ LEFT ALIGNED
+        tr.appendChild(cell(p.cost.toFixed(1)));
+        tr.appendChild(cell(p.form.toFixed(1)));
+        tr.appendChild(cell(p.totalPoints));
 
-        (p.gwPoints || []).forEach(pts => {
-          tr.appendChild(cell(pts));
-        });
+        p.gwPoints.forEach(pts => tr.appendChild(cell(pts)));
 
         tbody.appendChild(tr);
       });
     }
 
     sortSelect.addEventListener("change", () => {
-      currentSortKey =
-        sortSelect.value === "formPerCost" ? "formPerCost" : "ptsPerCost";
+      currentSortKey = sortSelect.value;
       sortAndRender();
     });
 
