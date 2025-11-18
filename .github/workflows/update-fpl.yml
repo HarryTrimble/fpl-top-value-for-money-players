@@ -2,11 +2,11 @@ name: Update FPL JSON
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour (UTC)
+    - cron: "0 6 * * *"   # run daily at 06:00 UTC
   workflow_dispatch:
 
 permissions:
-  contents: write          # allow git push
+  contents: write
 
 jobs:
   update:
@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so rebase works
+          fetch-depth: 0
 
       - name: Fetch latest FPL bootstrap-static
         run: |
@@ -27,7 +27,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # If file is unchanged, exit early
           if git diff --quiet bootstrap-static.json; then
             echo "No changes to commit."
             exit 0
@@ -35,9 +34,5 @@ jobs:
 
           git add bootstrap-static.json
           git commit -m "Update FPL data"
-
-          # Make sure we are up to date with remote main
           git pull --rebase origin main
-
-          # Push our rebased commit back to main
           git push origin HEAD:main
