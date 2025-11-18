@@ -99,7 +99,7 @@
   <script>
     // Local cached files in your repo
     const BOOTSTRAP_URL = "bootstrap-static.json";
-    const GW_DIR = "gw"; // contains gw-<id>.json
+    const GW_DIR = "gw"; // contains gw/gw-<id>.json
 
     const statusEl = document.getElementById("status");
     const theadRow = document.querySelector("#players-table thead tr");
@@ -108,7 +108,8 @@
 
     let players = [];
     let currentSortKey = "ptsPerCost";
-    let gwHeaders = []; // e.g. ["GW11 pts", "GW10 pts", ...]
+    let gwHeaders = [];          // ["GW11 pts", "GW10 pts", ...]
+    let gwInDisplayOrder = [];   // [{id, name, ...}] newest first
 
     async function init() {
       try {
@@ -120,45 +121,22 @@
         // 1) Find last 5 finished gameweeks
         const finished = (bootstrap.events || [])
           .filter(e => e.finished)
-          .sort((a, b) => a.id - b.id); // ascending by id
-        const lastFive = finished.slice(-5); // last 5
+          .sort((a, b) => a.id - b.id); // ascending id
+
+        const lastFive = finished.slice(-5);      // last 5 (oldest→newest)
+        gwInDisplayOrder = lastFive.slice().reverse(); // newest→oldest for display
+        gwHeaders = gwInDisplayOrder.map(ev => "GW" + ev.id + " pts");
 
         // 2) Load GW live JSON for those gameweeks
         const gwMaps = await loadGwLive(lastFive);
 
-        // 3) Build table header: base columns + GW columns
-        const baseHeaders = [
-          "#",
-          "player",
-          "points per £1m (total points ÷ cost)",
-          "points per £1m (form ÷ cost)",
-          "position",
-          "club",
-          "cost",
-          "form",
-          "total points"
-        ];
-
-        // show newest GW first, like Sheet: GW11 pts, GW10 pts, ...
-        const gwInDisplayOrder = lastFive.slice().reverse();
-        gwHeaders = gwInDisplayOrder.map(ev => "GW" + ev.id + " pts");
-
-        const allHeaders = baseHeaders.concat(gwHeaders);
-        theadRow.innerHTML = "";
-        allHeaders.forEach(text => {
-          const th = document.createElement("th");
-          th.textContent = text;
-          theadRow.appendChild(th);
-        });
-
-        // 4) Build players array with GW points aligned to gwHeaders
+        // 3) Build players array with GW points
         players = transformData(bootstrap, gwInDisplayOrder, gwMaps);
+
         sortAndRender();
         statusEl.textContent =
-          "Loaded " +
-          players.length +
-          " players. Showing last 5 finished GWs: " +
-          gwHeaders.join(", ");
+          "Loaded " + players.length +
+          " players. Last 5 finished GWs: " + gwHeaders.join(", ");
       } catch (err) {
         console.error(err);
         statusEl.textContent =
@@ -194,7 +172,7 @@
       return result;
     }
 
-    function transformData(bootstrap, gwInDisplayOrder, gwMaps) {
+    function transformData(bootstrap, gwDisplayOrder, gwMaps) {
       const teams = {};
       (bootstrap.teams || []).forEach(t => { teams[t.id] = t.name; });
       const positions = {};
@@ -208,8 +186,8 @@
         const ptsPerCost = cost > 0 ? totalPoints / cost : 0;
         const formPerCost = cost > 0 ? form / cost : 0;
 
-        // GW points in same order as gwHeaders
-        const gwPoints = gwInDisplayOrder.map(ev => {
+        // GW points in same order as gwDisplayOrder (newest first)
+        const gwPoints = gwDisplayOrder.map(ev => {
           const gwMap = gwMaps[ev.id] || {};
           return gwMap[e.id] || 0;
         });
@@ -229,12 +207,41 @@
     }
 
     function sortAndRender() {
-      const sorted = players.slice().sort((a, b) => b[currentSortKey] - a[currentSortKey]);
+      const sorted = players.slice().sort(
+        (a, b) => b[currentSortKey] - a[currentSortKey]
+      );
       renderTable(sorted);
     }
 
     function renderTable(list) {
       tbody.innerHTML = "";
+
+      const hidePtsPerCost = currentSortKey === "formPerCost";
+
+      // Build header row afresh each time to reflect hidden/shown column
+      theadRow.innerHTML = "";
+      const headerLabels = [];
+
+      headerLabels.push("#");
+      headerLabels.push("player");
+      if (!hidePtsPerCost) {
+        headerLabels.push("points per £1m (total points ÷ cost)");
+      }
+      headerLabels.push("points per £1m (form ÷ cost)");
+      headerLabels.push("position");
+      headerLabels.push("club");
+      headerLabels.push("cost");
+      headerLabels.push("form");
+      headerLabels.push("total points");
+      headerLabels.push(...gwHeaders);
+
+      headerLabels.forEach(text => {
+        const th = document.createElement("th");
+        th.textContent = text;
+        theadRow.appendChild(th);
+      });
+
+      // Body rows
       list.forEach((p, index) => {
         const tr = document.createElement("tr");
 
@@ -244,17 +251,20 @@
           return td;
         }
 
+        // Column order must match headerLabels above
         tr.appendChild(cell(index + 1));                   // #
         tr.appendChild(cell(p.name));                      // player
-        tr.appendChild(cell(p.ptsPerCost.toFixed(2)));     // pts per £1m (total)
-        tr.appendChild(cell(p.formPerCost.toFixed(2)));    // pts per £1m (form)
+        if (!hidePtsPerCost) {
+          tr.appendChild(cell(p.ptsPerCost.toFixed(2)));   // pts/£m (total)
+        }
+        tr.appendChild(cell(p.formPerCost.toFixed(2)));    // pts/£m (form)
         tr.appendChild(cell(p.position));                  // position
         tr.appendChild(cell(p.club));                      // club
         tr.appendChild(cell(p.cost.toFixed(1)));           // cost
         tr.appendChild(cell(p.form.toFixed(1)));           // form
         tr.appendChild(cell(p.totalPoints));               // total points
 
-        // Last 5 GW points (GW11 pts, GW10 pts, ...)
+        // Last 5 GW points
         (p.gwPoints || []).forEach(pts => {
           tr.appendChild(cell(pts));
         });
