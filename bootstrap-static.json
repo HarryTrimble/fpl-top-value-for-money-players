@@ -1,0 +1,1 @@
+curl -L https://fantasy.premierleague.com/api/bootstrap-static/ -o bootstrap-static.json

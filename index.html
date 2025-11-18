@@ -1,86 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>FPL – Over the season [total points]</title>
+  <meta charset="utf-8" />
+  <title>FPL – Top value for money players</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    :root { color-scheme: dark; }
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
       padding: 1.5rem;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #020617;
       color: #e5e7eb;
     }
-    h1 {
-      margin-bottom: 1rem;
+    h1 { margin: 0 0 0.5rem 0; font-size: 1.6rem; }
+    #subtitle { margin-bottom: 1rem; font-size: 0.9rem; color: #9ca3af; }
+    #controls {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      align-items: center; margin-bottom: 1rem;
     }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      background: #020617;
+    select {
+      background: #020617; color: #e5e7eb;
+      border-radius: 999px; border: 1px solid #1f2937;
+      padding: 0.3rem 0.75rem; font-size: 0.85rem;
     }
+    #status { font-size: 0.85rem; color: #9ca3af; margin-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     th, td {
-      border-bottom: 1px solid #1f2937;
-      padding: 0.4rem 0.6rem;
-      font-size: 0.85rem;
-      text-align: left;
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid #111827;
+      text-align: right; white-space: nowrap;
     }
     th {
-      position: sticky;
-      top: 0;
-      background: #020617;
+      position: sticky; top: 0; background: #020617;
+      z-index: 1; font-weight: 500; font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 0.04em; color: #9ca3af;
     }
-    tr:nth-child(even) td {
-      background: #020617;
+    th:first-child, td:first-child { text-align: center; }
+    th:nth-child(2), td:nth-child(2),
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4) { text-align: left; }
+    tr:nth-child(even) td { background: #020617; }
+    tr:hover td { background: #0b1120; }
+    @media (max-width: 900px) {
+      table { font-size: 0.75rem; }
+      th, td { padding: 0.25rem 0.35rem; }
     }
   </style>
 </head>
 <body>
-  <h1>FPL – Over the season [total points]</h1>
-  <table id="fpl-table">
-    <thead></thead>
-    <tbody></tbody>
-  </table>
+  <h1>FPL – Top value for money players</h1>
+  <div id="subtitle">Data cached in this repo from fantasy.premierleague.com.</div>
+
+  <div id="controls">
+    <label>
+      Sort by:
+      <select id="sort-select">
+        <option value="ptsPerCost">points per £1m (total points ÷ cost)</option>
+        <option value="formPerCost">points per £1m (form ÷ cost)</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="status">Loading data…</div>
+
+  <div style="overflow-x: auto;">
+    <table id="players-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Player</th>
+          <th>Position</th>
+          <th>Club</th>
+          <th>Cost</th>
+          <th>Total points</th>
+          <th>Form</th>
+          <th>Pts/£m (total)</th>
+          <th>Pts/£m (form)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script>
-    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/YOUR_PUBLISHED_ID/pub?output=csv";
+    // NOTE: this is now a local file in your repo, not the live FPL API.
+    const BOOTSTRAP_URL = "bootstrap-static.json";
 
-    async function loadCSV() {
-      const res = await fetch(CSV_URL);
-      if (!res.ok) {
-        console.error("Failed to fetch CSV", res.status);
-        return;
+    const statusEl = document.getElementById("status");
+    const tbody = document.querySelector("#players-table tbody");
+    const sortSelect = document.getElementById("sort-select");
+
+    let players = [];
+    let currentSortKey = "ptsPerCost";
+
+    async function init() {
+      try {
+        statusEl.textContent = "Loading cached FPL data…";
+        const res = await fetch(BOOTSTRAP_URL);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        players = transformData(data);
+        sortAndRender();
+        statusEl.textContent = "Loaded " + players.length + " players.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Failed to load FPL data: " + (err.message || err);
       }
-      const text = await res.text();
-      const rows = text.trim().split("\n").map(r =>
-        r.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, ""))
-      );
+    }
 
-      const thead = document.querySelector("#fpl-table thead");
-      const tbody = document.querySelector("#fpl-table tbody");
+    function transformData(data) {
+      const teams = {};
+      (data.teams || []).forEach(t => { teams[t.id] = t.name; });
+      const positions = {};
+      (data.element_types || []).forEach(p => { positions[p.id] = p.singular_name_short; });
 
-      // header
-      const headerRow = document.createElement("tr");
-      rows[0].forEach(h => {
-        const th = document.createElement("th");
-        th.textContent = h;
-        headerRow.appendChild(th);
+      return (data.elements || []).map(e => {
+        const cost = (e.now_cost || 0) / 10;
+        const form = parseFloat(e.form || "0") || 0;
+        const totalPoints = e.total_points || 0;
+        const ptsPerCost = cost > 0 ? totalPoints / cost : 0;
+        const formPerCost = cost > 0 ? form / cost : 0;
+
+        return {
+          name: (e.first_name + " " + e.second_name).trim(),
+          position: positions[e.element_type] || "",
+          club: teams[e.team] || "",
+          cost,
+          form,
+          totalPoints,
+          ptsPerCost,
+          formPerCost,
+        };
       });
-      thead.appendChild(headerRow);
+    }
 
-      // data
-      rows.slice(1).forEach(r => {
+    function sortAndRender() {
+      const sorted = players.slice().sort((a, b) => b[currentSortKey] - a[currentSortKey]);
+      renderTable(sorted);
+    }
+
+    function renderTable(list) {
+      tbody.innerHTML = "";
+      list.forEach((p, index) => {
         const tr = document.createElement("tr");
-        r.forEach(cell => {
+
+        function cell(text) {
           const td = document.createElement("td");
-          td.textContent = cell;
-          tr.appendChild(td);
-        });
+          td.textContent = text;
+          return td;
+        }
+
+        tr.appendChild(cell(index + 1));
+        tr.appendChild(cell(p.name));
+        tr.appendChild(cell(p.position));
+        tr.appendChild(cell(p.club));
+        tr.appendChild(cell(p.cost.toFixed(1)));
+        tr.appendChild(cell(p.totalPoints));
+        tr.appendChild(cell(p.form.toFixed(1)));
+        tr.appendChild(cell(p.ptsPerCost.toFixed(2)));
+        tr.appendChild(cell(p.formPerCost.toFixed(2)));
+
         tbody.appendChild(tr);
       });
     }
 
-    loadCSV().catch(console.error);
+    sortSelect.addEventListener("change", () => {
+      currentSortKey = sortSelect.value === "formPerCost" ? "formPerCost" : "ptsPerCost";
+      sortAndRender();
+    });
+
+    init();
   </script>
 </body>
 </html>
