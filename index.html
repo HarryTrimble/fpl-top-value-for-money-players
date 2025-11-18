@@ -1,29 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>FPL Value Table</title>
+  <title>FPL – Over the season [total points]</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #020617;
+      color: #e5e7eb;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: #020617;
+    }
+    th, td {
+      border-bottom: 1px solid #1f2937;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #020617;
+    }
+    tr:nth-child(even) td {
+      background: #020617;
+    }
+  </style>
 </head>
 <body>
   <h1>FPL – Over the season [total points]</h1>
-  <table id="fpl-table" border="1">
+  <table id="fpl-table">
     <thead></thead>
     <tbody></tbody>
   </table>
 
   <script>
-    async function loadCSV(url) {
-      const res = await fetch(url);
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/YOUR_PUBLISHED_ID/pub?output=csv";
+
+    async function loadCSV() {
+      const res = await fetch(CSV_URL);
+      if (!res.ok) {
+        console.error("Failed to fetch CSV", res.status);
+        return;
+      }
       const text = await res.text();
-      const rows = text.trim().split('\n').map(r => r.split(','));
+      const rows = text.trim().split("\n").map(r =>
+        r.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, ""))
+      );
 
-      const thead = document.querySelector('#fpl-table thead');
-      const tbody = document.querySelector('#fpl-table tbody');
+      const thead = document.querySelector("#fpl-table thead");
+      const tbody = document.querySelector("#fpl-table tbody");
 
-      // headers
-      const headerRow = document.createElement('tr');
+      // header
+      const headerRow = document.createElement("tr");
       rows[0].forEach(h => {
-        const th = document.createElement('th');
+        const th = document.createElement("th");
         th.textContent = h;
         headerRow.appendChild(th);
       });
@@ -31,9 +70,9 @@
 
       // data
       rows.slice(1).forEach(r => {
-        const tr = document.createElement('tr');
+        const tr = document.createElement("tr");
         r.forEach(cell => {
-          const td = document.createElement('td');
+          const td = document.createElement("td");
           td.textContent = cell;
           tr.appendChild(td);
         });
@@ -41,8 +80,7 @@
       });
     }
 
-    // If CSV is in same repo, just refer to it directly:
-    loadCSV('fpl-over-season.csv');
+    loadCSV().catch(console.error);
   </script>
 </body>
 </html>
