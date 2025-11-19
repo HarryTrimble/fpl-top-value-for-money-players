@@ -17,48 +17,6 @@
     #subtitle { margin-bottom: 0.2rem; font-size: 0.9rem; color: #9ca3af; }
     #last-updated { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
 
-    /* TABLE */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
-    th, td {
-      padding: 0.35rem 0.5rem;
-      border-bottom: 1px solid #111827;
-      white-space: nowrap;
-      text-align: right; /* default */
-    }
-
-    th {
-      position: sticky;
-      top: 0;
-      background: #020617;
-      z-index: 1;
-      font-weight: 500;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #9ca3af;
-    }
-
-    /* LEFT ALIGN THESE COLUMNS */
-    th:nth-child(1), td:nth-child(1),
-    th:nth-child(2), td:nth-child(2),
-    th:nth-child(4), td:nth-child(4),
-    th:nth-child(5), td:nth-child(5) {
-      text-align: left !important;
-    }
-
-    tr:nth-child(even) td { background: #020617; }
-    tr:hover td { background: #0b1120; }
-
-    @media (max-width: 900px) {
-      table { font-size: 0.75rem; }
-      th, td { padding: 0.25rem 0.35rem; }
-    }
-
-    /* CONTROLS */
     #controls {
       display: flex;
       flex-wrap: wrap;
@@ -78,6 +36,67 @@
       font-size: 0.85rem;
       color: #9ca3af;
       margin-bottom: 0.5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid #111827;
+      white-space: nowrap;
+      text-align: right; /* default */
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #020617;
+      z-index: 1;
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #9ca3af;
+    }
+
+    /* Left-align these logical columns */
+    th.col-index, td.col-index,
+    th.col-player, td.col-player,
+    th.col-position, td.col-position,
+    th.col-club, td.col-club {
+      text-align: left;
+    }
+
+    tr:nth-child(even) td { background: #020617; }
+    tr:hover td { background: #0b1120; }
+
+    @media (max-width: 900px) {
+      table { font-size: 0.75rem; }
+      th, td { padding: 0.25rem 0.35rem; }
+    }
+
+    /* Tablet: hide the two oldest GW columns (index 3 & 4 of the 5) */
+    @media (max-width: 768px) {
+      .col-gw-3, .col-gw-4 {
+        display: none;
+      }
+    }
+
+    /* Phone: hide position, cost, form, and all but latest GW */
+    @media (max-width: 600px) {
+      .col-position,
+      .col-cost,
+      .col-form {
+        display: none;
+      }
+      .col-gw-1,
+      .col-gw-2,
+      .col-gw-3,
+      .col-gw-4 {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -126,7 +145,7 @@
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
 
-        /* === LAST UPDATED FROM HTTP HEADER === */
+        // Last updated from HTTP header
         const lastMod = res.headers.get("last-modified");
         if (lastMod) {
           const date = new Date(lastMod);
@@ -146,10 +165,12 @@
 
         const bootstrap = await res.json();
 
-        const finished = bootstrap.events.filter(e => e.finished).sort((a,b) => a.id - b.id);
+        const finished = bootstrap.events
+          .filter(e => e.finished)
+          .sort((a, b) => a.id - b.id);
         const lastFive = finished.slice(-5);
 
-        gwInDisplayOrder = lastFive.slice().reverse();
+        gwInDisplayOrder = lastFive.slice().reverse(); // newest first
         gwHeaders = gwInDisplayOrder.map(ev => "GW" + ev.id + " pts");
 
         const gwMaps = await loadGwLive(lastFive);
@@ -164,29 +185,31 @@
 
     async function loadGwLive(lastFive) {
       const result = {};
-      await Promise.all(lastFive.map(async ev => {
-        try {
-          const url = `${GW_DIR}/gw-${ev.id}.json`;
-          const res = await fetch(url);
-          if (!res.ok) return;
-
-          const data = await res.json();
-          const map = {};
-          data.elements.forEach(el => {
-            map[el.id] = el.stats?.total_points || 0;
-          });
-          result[ev.id] = map;
-        } catch {}
-      }));
+      await Promise.all(
+        lastFive.map(async ev => {
+          try {
+            const url = `${GW_DIR}/gw-${ev.id}.json`;
+            const res = await fetch(url);
+            if (!res.ok) return;
+            const data = await res.json();
+            const map = {};
+            data.elements.forEach(el => {
+              map[el.id] = el.stats?.total_points || 0;
+            });
+            result[ev.id] = map;
+          } catch {}
+        })
+      );
       return result;
     }
 
     function transformData(bootstrap, gwDisplayOrder, gwMaps) {
       const teams = {};
-      bootstrap.teams.forEach(t => teams[t.id] = t.name);
-
+      bootstrap.teams.forEach(t => (teams[t.id] = t.name));
       const positions = {};
-      bootstrap.element_types.forEach(p => positions[p.id] = p.singular_name_short);
+      bootstrap.element_types.forEach(
+        p => (positions[p.id] = p.singular_name_short)
+      );
 
       return bootstrap.elements.map(e => {
         const cost = e.now_cost / 10;
@@ -196,12 +219,12 @@
         const ptsPerCost = totalPoints / cost;
         const formPerCost = form / cost;
 
-        const gwPoints = gwDisplayOrder.map(ev =>
-          (gwMaps[ev.id] || {})[e.id] || 0
+        const gwPoints = gwDisplayOrder.map(
+          ev => (gwMaps[ev.id] || {})[e.id] || 0
         );
 
         return {
-          name: e.web_name, 
+          name: e.web_name,
           position: positions[e.element_type],
           club: teams[e.team],
           cost,
@@ -215,7 +238,9 @@
     }
 
     function sortAndRender() {
-      const sorted = players.slice().sort((a,b) => b[currentSortKey] - a[currentSortKey]);
+      const sorted = players.slice().sort(
+        (a, b) => b[currentSortKey] - a[currentSortKey]
+      );
       renderTable(sorted);
     }
 
@@ -225,38 +250,81 @@
       const hidePtsPerCost = currentSortKey === "formPerCost";
       const hideFormPerCost = currentSortKey === "ptsPerCost";
 
+      // Build header specs with labels + classes
       theadRow.innerHTML = "";
-      const headers = ["#", "player"];
+      const headerSpecs = [];
 
-      if (!hidePtsPerCost) headers.push("points per £1m (total points ÷ cost)");
-      if (!hideFormPerCost) headers.push("points per £1m (form ÷ cost)");
+      headerSpecs.push({ label: "#", cls: "col-index" });
+      headerSpecs.push({ label: "player", cls: "col-player" });
 
-      headers.push("position", "club", "cost", "form", "total points");
-      headers.push(...gwHeaders);
+      if (!hidePtsPerCost) {
+        headerSpecs.push({
+          label: "points per £1m (total points ÷ cost)",
+          cls: "col-value-total"
+        });
+      }
+      if (!hideFormPerCost) {
+        headerSpecs.push({
+          label: "points per £1m (form ÷ cost)",
+          cls: "col-value-form"
+        });
+      }
 
-      headers.forEach(h => {
+      headerSpecs.push({ label: "position", cls: "col-position" });
+      headerSpecs.push({ label: "club", cls: "col-club" });
+      headerSpecs.push({ label: "cost", cls: "col-cost" });
+      headerSpecs.push({ label: "form", cls: "col-form" });
+      headerSpecs.push({ label: "total points", cls: "col-total" });
+
+      gwHeaders.forEach((label, i) => {
+        headerSpecs.push({
+          label,
+          cls: `col-gw col-gw-${i}`
+        });
+      });
+
+      headerSpecs.forEach(spec => {
         const th = document.createElement("th");
-        th.textContent = h;
+        th.textContent = spec.label;
+        th.className = spec.cls;
         theadRow.appendChild(th);
       });
 
+      // Body rows
       list.forEach((p, index) => {
         const tr = document.createElement("tr");
-        function cell(v) { const td = document.createElement("td"); td.textContent = v; return td; }
+        function cell(value, cls) {
+          const td = document.createElement("td");
+          td.textContent = value;
+          td.className = cls;
+          return td;
+        }
 
-        tr.appendChild(cell(index + 1));       // #
-        tr.appendChild(cell(p.name));          // Player
+        tr.appendChild(cell(index + 1, "col-index"));
+        tr.appendChild(cell(p.name, "col-player"));
 
-        if (!hidePtsPerCost) tr.appendChild(cell(p.ptsPerCost.toFixed(2)));
-        if (!hideFormPerCost) tr.appendChild(cell(p.formPerCost.toFixed(2)));
+        if (!hidePtsPerCost) {
+          tr.appendChild(
+            cell(p.ptsPerCost.toFixed(2), "col-value-total")
+          );
+        }
+        if (!hideFormPerCost) {
+          tr.appendChild(
+            cell(p.formPerCost.toFixed(2), "col-value-form")
+          );
+        }
 
-        tr.appendChild(cell(p.position));      // Position
-        tr.appendChild(cell(p.club));          // Club
-        tr.appendChild(cell(p.cost.toFixed(1)));
-        tr.appendChild(cell(p.form.toFixed(1)));
-        tr.appendChild(cell(p.totalPoints));
+        tr.appendChild(cell(p.position, "col-position"));
+        tr.appendChild(cell(p.club, "col-club"));
+        tr.appendChild(cell(p.cost.toFixed(1), "col-cost"));
+        tr.appendChild(cell(p.form.toFixed(1), "col-form"));
+        tr.appendChild(cell(p.totalPoints, "col-total"));
 
-        p.gwPoints.forEach(pts => tr.appendChild(cell(pts)));
+        p.gwPoints.forEach((pts, i) => {
+          tr.appendChild(
+            cell(pts, `col-gw col-gw-${i}`)
+          );
+        });
 
         tbody.appendChild(tr);
       });
