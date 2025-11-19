@@ -16,6 +16,49 @@
     h1 { margin: 0 0 0.5rem 0; font-size: 1.6rem; }
     #subtitle { margin-bottom: 0.2rem; font-size: 0.9rem; color: #9ca3af; }
     #last-updated { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
+
+    /* TABLE */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid #111827;
+      white-space: nowrap;
+      text-align: right; /* default */
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #020617;
+      z-index: 1;
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #9ca3af;
+    }
+
+    /* LEFT ALIGN THESE COLUMNS */
+    th:nth-child(1), td:nth-child(1),
+    th:nth-child(2), td:nth-child(2),
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(5), td:nth-child(5) {
+      text-align: left !important;
+    }
+
+    tr:nth-child(even) td { background: #020617; }
+    tr:hover td { background: #0b1120; }
+
+    @media (max-width: 900px) {
+      table { font-size: 0.75rem; }
+      th, td { padding: 0.25rem 0.35rem; }
+    }
+
+    /* CONTROLS */
     #controls {
       display: flex;
       flex-wrap: wrap;
@@ -36,48 +79,12 @@
       color: #9ca3af;
       margin-bottom: 0.5rem;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
-    th, td {
-      padding: 0.35rem 0.5rem;
-      border-bottom: 1px solid #111827;
-      white-space: nowrap;
-    }
-    th {
-      position: sticky;
-      top: 0;
-      background: #020617;
-      z-index: 1;
-      font-weight: 500;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #9ca3af;
-    }
-
-    th:nth-child(1), td:nth-child(1) { text-align: center; }
-
-    /* LEFT-ALIGN: player, position, club */
-    th:nth-child(2), td:nth-child(2),
-    th:nth-child(4), td:nth-child(4),
-    th:nth-child(5), td:nth-child(5) {
-      text-align: left;
-    }
-
-    td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(4)):not(:nth-child(5)) {
-      text-align: right;
-    }
-
-    tr:nth-child(even) td { background: #020617; }
-    tr:hover td { background: #0b1120; }
   </style>
 </head>
+
 <body>
   <h1>FPL – Top value for money players</h1>
-  <div id="subtitle">Data updated daily – from <a href="https://fantasy.premierleague.com/api/bootstrap-static/">fantasy.premierleague.com/api/bootstrap-static</a></div>
+  <div id="subtitle">Data cached daily – includes last 5 gameweeks.</div>
   <div id="last-updated">Last updated: …</div>
 
   <div id="controls">
@@ -119,7 +126,7 @@
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
 
-        // Use Last-Modified HTTP header as the refresh time
+        /* === LAST UPDATED FROM HTTP HEADER === */
         const lastMod = res.headers.get("last-modified");
         if (lastMod) {
           const date = new Date(lastMod);
@@ -149,6 +156,7 @@
         players = transformData(bootstrap, gwInDisplayOrder, gwMaps);
 
         sortAndRender();
+        statusEl.textContent = "";
       } catch (err) {
         statusEl.textContent = "Failed to load FPL data: " + err.message;
       }
@@ -161,6 +169,7 @@
           const url = `${GW_DIR}/gw-${ev.id}.json`;
           const res = await fetch(url);
           if (!res.ok) return;
+
           const data = await res.json();
           const map = {};
           data.elements.forEach(el => {
@@ -175,6 +184,7 @@
     function transformData(bootstrap, gwDisplayOrder, gwMaps) {
       const teams = {};
       bootstrap.teams.forEach(t => teams[t.id] = t.name);
+
       const positions = {};
       bootstrap.element_types.forEach(p => positions[p.id] = p.singular_name_short);
 
@@ -182,6 +192,7 @@
         const cost = e.now_cost / 10;
         const form = parseFloat(e.form) || 0;
         const totalPoints = e.total_points;
+
         const ptsPerCost = totalPoints / cost;
         const formPerCost = form / cost;
 
@@ -190,7 +201,7 @@
         );
 
         return {
-          name: e.web_name,
+          name: e.web_name, 
           position: positions[e.element_type],
           club: teams[e.team],
           cost,
@@ -233,14 +244,14 @@
         const tr = document.createElement("tr");
         function cell(v) { const td = document.createElement("td"); td.textContent = v; return td; }
 
-        tr.appendChild(cell(index + 1));
-        tr.appendChild(cell(p.name));
+        tr.appendChild(cell(index + 1));       // #
+        tr.appendChild(cell(p.name));          // Player
 
         if (!hidePtsPerCost) tr.appendChild(cell(p.ptsPerCost.toFixed(2)));
         if (!hideFormPerCost) tr.appendChild(cell(p.formPerCost.toFixed(2)));
 
-        tr.appendChild(cell(p.position));
-        tr.appendChild(cell(p.club));
+        tr.appendChild(cell(p.position));      // Position
+        tr.appendChild(cell(p.club));          // Club
         tr.appendChild(cell(p.cost.toFixed(1)));
         tr.appendChild(cell(p.form.toFixed(1)));
         tr.appendChild(cell(p.totalPoints));
