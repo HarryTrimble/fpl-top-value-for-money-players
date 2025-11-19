@@ -118,11 +118,11 @@
       try {
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
-        const bootstrap = await res.json();
 
-        /* --- LAST UPDATED TIMESTAMP --- */
-        if (bootstrap.last_updated) {
-          const date = new Date(bootstrap.last_updated);
+        // Use Last-Modified HTTP header as the refresh time
+        const lastMod = res.headers.get("last-modified");
+        if (lastMod) {
+          const date = new Date(lastMod);
           lastUpdatedEl.textContent =
             "Last updated: " +
             date.toLocaleString("en-GB", {
@@ -131,12 +131,13 @@
               year: "numeric",
               hour: "2-digit",
               minute: "2-digit",
-              timeZone: "UTC"
-            }) +
-            " (UTC)";
+              timeZoneName: "short"
+            });
         } else {
           lastUpdatedEl.textContent = "Last updated: unknown";
         }
+
+        const bootstrap = await res.json();
 
         const finished = bootstrap.events.filter(e => e.finished).sort((a,b) => a.id - b.id);
         const lastFive = finished.slice(-5);
