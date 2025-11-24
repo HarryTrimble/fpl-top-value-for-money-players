@@ -17,27 +17,7 @@
     #subtitle { margin-bottom: 0.2rem; font-size: 0.9rem; color: #9ca3af; }
     #last-updated { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
 
-    #controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    select {
-      background: #020617;
-      color: #e5e7eb;
-      border-radius: 999px;
-      border: 1px solid #1f2937;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.85rem;
-    }
-    #status {
-      font-size: 0.85rem;
-      color: #9ca3af;
-      margin-bottom: 0.5rem;
-    }
-
+    /* TABLE ------------------------------------------------------------ */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -61,30 +41,37 @@
       color: #9ca3af;
     }
 
-    /* Left-align these logical columns */
+    /* LEFT-ALIGN: #, Player, Position, Club */
     th.col-index, td.col-index,
     th.col-player, td.col-player,
     th.col-position, td.col-position,
     th.col-club, td.col-club {
-      text-align: left;
+      text-align: left !important;
+    }
+
+    /* LEFT-ALIGN the VALUE COLUMNS */
+    th.col-value-total, td.col-value-total,
+    th.col-value-form, td.col-value-form {
+      text-align: left !important;
     }
 
     tr:nth-child(even) td { background: #020617; }
     tr:hover td { background: #0b1120; }
 
+    /* MOBILE RESPONSIVE ------------------------------------------------ */
     @media (max-width: 900px) {
       table { font-size: 0.75rem; }
       th, td { padding: 0.25rem 0.35rem; }
     }
 
-    /* Tablet: hide the two oldest GW columns (index 3 & 4 of the 5) */
+    /* Tablet: hide 2 oldest GW columns */
     @media (max-width: 768px) {
       .col-gw-3, .col-gw-4 {
         display: none;
       }
     }
 
-    /* Phone: hide position, cost, form, and all but latest GW */
+    /* Phone: hide position, cost, form, and all but newest GW */
     @media (max-width: 600px) {
       .col-position,
       .col-cost,
@@ -97,6 +84,28 @@
       .col-gw-4 {
         display: none;
       }
+    }
+
+    /* CONTROLS --------------------------------------------------------- */
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    select {
+      background: #020617;
+      color: #e5e7eb;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.85rem;
+    }
+    #status {
+      font-size: 0.85rem;
+      color: #9ca3af;
+      margin-bottom: 0.5rem;
     }
   </style>
 </head>
@@ -145,7 +154,7 @@
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
 
-        // Last updated from HTTP header
+        /* LAST UPDATED FROM HTTP HEADER */
         const lastMod = res.headers.get("last-modified");
         if (lastMod) {
           const date = new Date(lastMod);
@@ -250,7 +259,7 @@
       const hidePtsPerCost = currentSortKey === "formPerCost";
       const hideFormPerCost = currentSortKey === "ptsPerCost";
 
-      // Build header specs with labels + classes
+      // Header definition
       theadRow.innerHTML = "";
       const headerSpecs = [];
 
