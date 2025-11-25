@@ -94,7 +94,22 @@
       align-items: center;
       margin-bottom: 1rem;
     }
+    #controls label {
+      font-size: 0.85rem;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
     select {
+      background: #020617;
+      color: #e5e7eb;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.85rem;
+    }
+    #player-search {
       background: #020617;
       color: #e5e7eb;
       border-radius: 999px;
@@ -123,6 +138,22 @@
         <option value="formPerCost">Last 30 days [form]</option>
       </select>
     </label>
+
+    <label>
+      Position:
+      <select id="position-filter">
+        <option value="ALL">All positions</option>
+        <option value="GKP">GKP</option>
+        <option value="DEF">DEF</option>
+        <option value="MID">MID</option>
+        <option value="FWD">FWD</option>
+      </select>
+    </label>
+
+    <label>
+      Search:
+      <input id="player-search" type="text" placeholder="Player name…" />
+    </label>
   </div>
 
   <div id="status">Loading data…</div>
@@ -143,9 +174,13 @@
     const theadRow = document.querySelector("#players-table thead tr");
     const tbody = document.querySelector("#players-table tbody");
     const sortSelect = document.getElementById("sort-select");
+    const positionFilter = document.getElementById("position-filter");
+    const playerSearchInput = document.getElementById("player-search");
 
     let players = [];
     let currentSortKey = "ptsPerCost";
+    let selectedPosition = "ALL";
+    let searchQuery = "";
     let gwHeaders = [];
     let gwInDisplayOrder = [];
 
@@ -154,7 +189,7 @@
         const res = await fetch(BOOTSTRAP_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
 
-        /* LAST UPDATED FROM HTTP HEADER */
+        // LAST UPDATED FROM HTTP HEADER
         const lastMod = res.headers.get("last-modified");
         if (lastMod) {
           const date = new Date(lastMod);
@@ -234,7 +269,7 @@
 
         return {
           name: e.web_name,
-          position: positions[e.element_type],
+          position: positions[e.element_type], // GKP / DEF / MID / FWD
           club: teams[e.team],
           cost,
           form,
@@ -247,7 +282,20 @@
     }
 
     function sortAndRender() {
-      const sorted = players.slice().sort(
+      // 1) Filter by position
+      let list = players;
+      if (selectedPosition !== "ALL") {
+        list = list.filter(p => p.position === selectedPosition);
+      }
+
+      // 2) Filter by player name (case-insensitive substring)
+      if (searchQuery.trim() !== "") {
+        const q = searchQuery.toLowerCase();
+        list = list.filter(p => p.name.toLowerCase().includes(q));
+      }
+
+      // 3) Sort by selected metric
+      const sorted = list.slice().sort(
         (a, b) => b[currentSortKey] - a[currentSortKey]
       );
       renderTable(sorted);
@@ -341,6 +389,16 @@
 
     sortSelect.addEventListener("change", () => {
       currentSortKey = sortSelect.value;
+      sortAndRender();
+    });
+
+    positionFilter.addEventListener("change", () => {
+      selectedPosition = positionFilter.value;
+      sortAndRender();
+    });
+
+    playerSearchInput.addEventListener("input", () => {
+      searchQuery = playerSearchInput.value || "";
       sortAndRender();
     });
 
